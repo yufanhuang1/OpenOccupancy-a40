@@ -1,6 +1,6 @@
-cd $(readlink -f `dirname $0`)
-conda activate OpenOccupancy
-export PYTHONPATH="."
+#cd $(readlink -f `dirname $0`)
+#conda activate OpenOccupancy
+#export PYTHONPATH="."
 
 echo $1
 if [ -f $1 ]; then

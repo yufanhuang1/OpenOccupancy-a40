@@ -198,8 +198,8 @@ train_config=dict(
         box_type_3d='LiDAR'),
 
 data = dict(
-    samples_per_gpu=1,
-    workers_per_gpu=4,
+    samples_per_gpu=2,
+    workers_per_gpu=8,
     train=train_config,
     val=test_config,
     test=test_config,
@@ -209,7 +209,7 @@ data = dict(
 
 optimizer = dict(
     type='AdamW',
-    lr=3e-4,
+    lr=6e-4,
     paramwise_cfg=dict(
         custom_keys={
             'img_backbone': dict(lr_mult=0.1),
@@ -225,7 +225,7 @@ lr_config = dict(
     warmup_ratio=1.0 / 3,
     min_lr_ratio=1e-3)
 
-runner = dict(type='EpochBasedRunner', max_epochs=15)
+runner = dict(type='EpochBasedRunner', max_epochs=24)
 evaluation = dict(
     interval=1,
     pipeline=test_pipeline,
