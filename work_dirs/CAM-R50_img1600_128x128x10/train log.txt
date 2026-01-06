@@ -1,0 +1,2 @@
+/data/workspace/hyf/OpenOccupancy/mmdetection3d/OpenOccupancy/work_dirs/CAM-R50_img1600_128x128x10/20251231_182546.log  简单visible mask
+/data/workspace/hyf/OpenOccupancy/mmdetection3d/OpenOccupancy/work_dirs/CAM-R50_img1600_128x128x10/20260101_183126.log  celoss引入visible mask
