@@ -18,7 +18,7 @@ import copy
 class LoadOccupancy(object):
 
     def __init__(self, to_float32=True, use_semantic=False, occ_path=None, grid_size=[512, 512, 40], unoccupied=0,
-            pc_range=[-51.2, -51.2, -5.0, 51.2, 51.2, 3.0], gt_resize_ratio=1, cal_visible=False, use_vel=False):
+            pc_range=[-51.2, -51.2, -5.0, 51.2, 51.2, 3.0], gt_resize_ratio=1, cal_visible=True, use_vel=False):
         self.to_float32 = to_float32
         self.use_semantic = use_semantic
         self.occ_path = occ_path
@@ -98,7 +98,6 @@ class LoadOccupancy(object):
                 voxel_img = nb_process_label(img_occ_label, img_pcd_np) 
                 visible_mask = visible_mask | voxel_img
                 results['img_visible_mask'] = voxel_img
-
 
             # lidar branch
             if 'points' in results.keys():

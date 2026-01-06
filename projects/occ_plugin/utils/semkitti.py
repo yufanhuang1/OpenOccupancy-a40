@@ -137,16 +137,63 @@ def sem_scal_loss(pred, ssc_target, ignore_index=255):
     return loss / count
 
 
-def CE_ssc_loss(pred, target, class_weights=None, ignore_index=255):
-    """
-    :param: prediction: the predicted tensor, must be [BS, C, ...]
-    """
-    criterion = nn.CrossEntropyLoss(
-        weight=class_weights, ignore_index=ignore_index, reduction="mean"
-    )
-    loss = criterion(pred, target.long())
+# def CE_ssc_loss(pred, target, class_weights=None, ignore_index=255):
+#     """
+#     :param: prediction: the predicted tensor, must be [BS, C, ...]
+#     """
+#     criterion = nn.CrossEntropyLoss(
+#         weight=class_weights, ignore_index=ignore_index, reduction="mean"
+#     )
+#     loss = criterion(pred, target.long())
 
+#     return loss
+
+def CE_ssc_loss(
+    pred,
+    target,
+    class_weights=None,
+    ignore_index=255,
+    visible_mask=None,
+    invisible_weight=0.2,
+):
+    """
+    pred:   [B, C, X, Y, Z]
+    target: [B, X, Y, Z]
+    visible_mask: [B, X, Y, Z] or None
+    """
+
+    # voxel-wise CE
+    loss = F.cross_entropy(
+        pred,
+        target.long(),
+        weight=class_weights,
+        ignore_index=ignore_index,
+        reduction='none'      # ★ 关键
+    )  # [B, X, Y, Z]
+
+    if visible_mask is not None:
+        visible_mask = visible_mask.to(loss.device).float()
+
+        weight = torch.ones_like(loss)
+        
+        weight[visible_mask < 0.5] = invisible_weight
+
+        loss = (loss * weight).sum() / (weight.sum() + 1e-6)
+
+        # ✅ debug（只在 visible 生效时）
+        print(
+            'visible ratio:',
+            visible_mask.mean().item(),
+            'avg weight:',
+            weight.mean().item()
+        )
+    else:
+        loss = loss.mean()
+        # ✅ debug（baseline 阶段）
+        print('visible disabled (warm-up)')
+    
     return loss
+
 
 def vel_loss(pred, gt):
     return F.l1_loss(pred, gt)

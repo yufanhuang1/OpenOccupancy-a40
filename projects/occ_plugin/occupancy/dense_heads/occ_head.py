@@ -51,6 +51,9 @@ class OccHead(nn.Module):
         self.cascade_ratio = cascade_ratio
         self.sample_from_voxel = sample_from_voxel
         self.sample_from_img = sample_from_img
+        #self.epoch = 0
+        self.iter = 0
+        self.visible_warmup_iters = 42195   # 例如前 2000 iter 不用 visible
 
         if self.cascade_ratio != 1: 
             if self.sample_from_voxel or self.sample_from_img:
@@ -231,8 +234,18 @@ class OccHead(nn.Module):
         
         return res
 
-    def loss_voxel(self, output_voxels, target_voxels, tag):
-
+    def loss_voxel(self, output_voxels, target_voxels, visible_mask, tag):
+        # visible_mask: [B, X, Y, Z]
+        # target_voxels: [B, X, Y, Z]
+        # 当前只在voxel level添加visible mask
+        # hard mask
+        # if visible_mask is not None:
+        #     visible_mask = visible_mask.to(target_voxels.device).bool()
+        #     target_voxels = target_voxels.clone()
+        #     target_voxels[~visible_mask] = 255   # ignore invisible voxels
+        # ===== visible warm-up (iter-based) =====
+        if self.iter < self.visible_warmup_iters:
+            visible_mask = None
         # resize gt                       
         B, C, H, W, D = output_voxels.shape
         ratio = target_voxels.shape[2] // H
@@ -251,13 +264,53 @@ class OccHead(nn.Module):
         assert torch.isnan(target_voxels).sum().item() == 0
 
         loss_dict = {}
+        # visible_mask: [B, 512, 512, 40]
+        # output_voxel: [B, C, 128, 128, 10]
+
+        if visible_mask is not None:
+            # 转成 float
+            visible_mask = visible_mask.float()
+
+            # 下采样比例
+            sx = visible_mask.shape[1] // output_voxels.shape[2]
+            sy = visible_mask.shape[2] // output_voxels.shape[3]
+            sz = visible_mask.shape[3] // output_voxels.shape[4]
+
+            # [B, X, Y, Z] -> [B, 1, X, Y, Z]
+            visible_mask_ds = visible_mask.unsqueeze(1)
+
+            # max pooling：只要 block 里有一个可见，就认为可见
+            visible_mask_ds = F.max_pool3d(
+                visible_mask_ds,
+                kernel_size=(sx, sy, sz),
+                stride=(sx, sy, sz)
+            )
+
+            visible_mask_ds = visible_mask_ds.squeeze(1)  # [B, 128, 128, 10]
+        else:
+            visible_mask_ds = None
+        # print(
+        #     'target_voxels shape:', target_voxels.shape,
+        #     'visible ds shape:', visible_mask_ds.shape,
+        #     'visible ds mean:', visible_mask_ds.mean().item()
+        # )
 
         # igore 255 = ignore noise. we keep the loss bascward for the label=0 (free voxels)
-        loss_dict['loss_voxel_ce_{}'.format(tag)] = self.loss_voxel_ce_weight * CE_ssc_loss(output_voxels, target_voxels, self.class_weights.type_as(output_voxels), ignore_index=255)
+        # loss_dict['loss_voxel_ce_{}'.format(tag)] = self.loss_voxel_ce_weight * CE_ssc_loss(output_voxels, target_voxels, self.class_weights.type_as(output_voxels), ignore_index=255)
+        loss_dict['loss_voxel_ce_{}'.format(tag)] = \
+            self.loss_voxel_ce_weight * CE_ssc_loss(
+                output_voxels,
+                target_voxels,
+                class_weights=self.class_weights.type_as(output_voxels),
+                ignore_index=255,
+                visible_mask=visible_mask_ds,
+                invisible_weight=0.2
+            )
         loss_dict['loss_voxel_sem_scal_{}'.format(tag)] = self.loss_voxel_sem_scal_weight * sem_scal_loss(output_voxels, target_voxels, ignore_index=255)
         loss_dict['loss_voxel_geo_scal_{}'.format(tag)] = self.loss_voxel_geo_scal_weight * geo_scal_loss(output_voxels, target_voxels, ignore_index=255, non_empty_idx=self.empty_idx)
         loss_dict['loss_voxel_lovasz_{}'.format(tag)] = self.loss_voxel_lovasz_weight * lovasz_softmax(torch.softmax(output_voxels, dim=1), target_voxels, ignore=255)
 
+        self.iter += 1
         return loss_dict
 
     def loss_point(self, fine_coord, fine_output, target_voxels, tag):
@@ -279,10 +332,10 @@ class OccHead(nn.Module):
 
     def loss(self, output_voxels=None,
                 output_coords_fine=None, output_voxels_fine=None, 
-                target_voxels=None, visible_mask=None, **kwargs):
+                target_voxels=None, visible_mask=True, **kwargs):
         loss_dict = {}
         for index, output_voxel in enumerate(output_voxels):
-            loss_dict.update(self.loss_voxel(output_voxel, target_voxels,  tag='c_{}'.format(index)))
+            loss_dict.update(self.loss_voxel(output_voxel, target_voxels, visible_mask, tag='c_{}'.format(index)))
         if self.cascade_ratio != 1:
             loss_batch_dict = {}
             if self.sample_from_voxel or self.sample_from_img:

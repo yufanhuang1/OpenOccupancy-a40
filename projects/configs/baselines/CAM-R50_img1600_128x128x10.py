@@ -28,7 +28,7 @@ voxel_z = (point_cloud_range[5] - point_cloud_range[2]) / occ_size[2]
 voxel_channels = [64, 64*2, 64*4, 64*8]
 empty_idx = 0  # noise 0-->255
 num_cls = 17  # 0 free, 1-16 obj
-visible_mask = False
+visible_mask = True
 img_norm_cfg = None
 
 cascade_ratio = 4
@@ -151,7 +151,7 @@ train_pipeline = [
     dict(type='LoadOccupancy', to_float32=True, use_semantic=True, occ_path=occ_path, grid_size=occ_size, use_vel=False,
             unoccupied=empty_idx, pc_range=point_cloud_range, cal_visible=visible_mask),
     dict(type='OccDefaultFormatBundle3D', class_names=class_names),
-    dict(type='Collect3D', keys=['img_inputs', 'gt_occ']),
+    dict(type='Collect3D', keys=['img_inputs', 'gt_occ', 'visible_mask']),
 ]
 
 test_pipeline = [
@@ -166,7 +166,7 @@ test_pipeline = [
     dict(type='LoadOccupancy', to_float32=True, use_semantic=True, occ_path=occ_path, grid_size=occ_size, use_vel=False,
         unoccupied=empty_idx, pc_range=point_cloud_range, cal_visible=visible_mask),
     dict(type='OccDefaultFormatBundle3D', class_names=class_names, with_label=False), 
-    dict(type='Collect3D', keys=['img_inputs', 'gt_occ'],
+    dict(type='Collect3D', keys=['img_inputs', 'gt_occ', 'visible_mask'],
             meta_keys=['pc_range', 'occ_size', 'scene_token', 'lidar_token']),
 ]
 
